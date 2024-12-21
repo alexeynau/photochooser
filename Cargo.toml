@@ -1,0 +1,17 @@
+[package]
+name = "photochooser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.94"
+axum = { version = "0.7.6", features = ["macros", "multipart"] }
+bcrypt = "0.16.0"
+chrono = { version = "0.4.39", features = ["serde"] }
+dotenvy = "0.15.7"
+minio = { git = "https://github.com/minio/minio-rs"}
+serde = "1.0.216"
+serde_json = "1.0.133"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-native-tls", "chrono"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread"] }
+tracing-subscriber = "0.3.19"
