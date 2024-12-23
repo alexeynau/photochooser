@@ -12,6 +12,9 @@ dotenvy = "0.15.7"
 minio = { git = "https://github.com/minio/minio-rs"}
 serde = "1.0.216"
 serde_json = "1.0.133"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-native-tls", "chrono"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-native-tls", "chrono", "sqlite"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread"] }
 tracing-subscriber = "0.3.19"
+
+
+

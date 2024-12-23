@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Multipart, Query, State},
-    http::StatusCode,
-    Json,
+    extract::{Multipart, Query, State}, http::StatusCode, response::IntoResponse, Json
 };
 use minio::s3::{
     args::{BucketExistsArgs, MakeBucketArgs, PutObjectApiArgs},
-    response::PutObjectApiResponse,
+    response::PutObjectApiResponse, types::S3Api,
 };
 
 use crate::{models::Photo, AppState};
 
 /// Upload a photo to an album
+/// 
 /// POST /upload
 #[axum::debug_handler]
 pub async fn upload_photo(
@@ -21,6 +20,23 @@ pub async fn upload_photo(
 ) -> Result<Json<Photo>, (StatusCode, String)> {
     // Temporary storage for form fields
     let mut fields: HashMap<String, String> = HashMap::new();
+
+
+    // Validate and construct response
+    let album_id = fields
+        .get("album_id")
+        .ok_or((
+            StatusCode::BAD_REQUEST,
+            "Missing field: album_id".to_string(),
+        ))?
+        .clone()
+        .parse::<i32>()
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to parse album_id: {}", e),
+            )
+        })?;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (
@@ -42,7 +58,12 @@ pub async fn upload_photo(
             })?;
 
             // upload to minio
-            let response = upload_photo_to_minio("photos", &file_name, &data, &state)
+            let response = upload_photo_to_minio(
+                &format!("photos/album_{}", album_id), 
+                &file_name, 
+                &data, 
+                &state
+            )
                 .await
                 .map_err(|e| {
                     (
@@ -63,21 +84,6 @@ pub async fn upload_photo(
         }
     }
 
-    // Validate and construct response
-    let album_id = fields
-        .get("album_id")
-        .ok_or((
-            StatusCode::BAD_REQUEST,
-            "Missing field: album_id".to_string(),
-        ))?
-        .clone()
-        .parse::<i32>()
-        .map_err(|e| {
-            (
-                StatusCode::BAD_REQUEST,
-                format!("Failed to parse album_id: {}", e),
-            )
-        })?;
 
     let file_path = fields
         .get("file_path")
@@ -135,6 +141,7 @@ pub async fn upload_photo_to_minio(
 }
 
 /// Get all photos in an album
+/// 
 /// GET /photos?album_id={album_id}
 #[axum::debug_handler]
 pub async fn get_photos_by_album_id(
@@ -158,4 +165,63 @@ pub async fn get_photos_by_album_id(
 #[derive(serde::Deserialize)]
 pub struct GetPhotosByAlbumIdRequest {
     pub album_id: i32,
+}
+
+/// Get a photo file by its ID as bytes (image/png)
+/// 
+/// GET /photo/{photo_id}
+
+#[axum::debug_handler]
+pub async fn get_photo_by_id(
+    State(state): State<AppState>,
+    Query(query): Query<GetPhotoByIdRequest>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let photo = sqlx::query_as::<_, Photo>(
+        r#"
+    SELECT * FROM photos
+    WHERE photo_id = $1
+    "#,
+    )
+    .bind(query.photo_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let photo = match photo {
+        Some(photo) => photo,
+        None => {
+            return Err((StatusCode::NOT_FOUND, "Photo not found".to_string()));
+        }
+    };
+
+    let data = state
+        .minio
+        .lock()
+        .await
+        .get_object(
+            &format!("photos/album_{}", photo.album_id),
+            &photo.s3_path
+        )
+        .send()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .content
+        .to_segmented_bytes()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok((
+        axum::response::AppendHeaders([
+            (
+                "Content-Type",
+                "image/png",
+            ),
+        ]),
+        data.to_bytes().to_vec()
+    ))
+}
+
+#[derive(serde::Deserialize)]
+pub struct GetPhotoByIdRequest {
+    pub photo_id: i32,
 }

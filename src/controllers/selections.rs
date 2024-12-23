@@ -7,6 +7,7 @@ use axum::{
 use crate::{models::{Photo, PhotoSelection}, AppState};
 
 /// Select photos from an album
+/// 
 /// POST /selections
 #[axum::debug_handler]
 pub async fn select_photos(
@@ -55,6 +56,7 @@ pub struct SelectionsRequest {
 }
 
 /// Get all selections for a client and album
+/// 
 /// GET /selections?client_id={client_id}&album_id={album_id}
 
 #[axum::debug_handler]
@@ -86,6 +88,7 @@ pub struct SelectionsQuery {
 }
 
 /// Get all seleced photos for a client and album
+/// 
 /// GET /selected_photos?client_id={client_id}&album_id={album_id}
 
 #[axum::debug_handler]
@@ -105,7 +108,7 @@ pub async fn get_selected_photos_by_client_and_album(
     )
     .bind(query.client_id)
     .bind(query.album_id)
-    .fetch_all(&state.pool)
+    .fetch_all(&state.pool) // FIXME fetch optional
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

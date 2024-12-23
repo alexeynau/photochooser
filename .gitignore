@@ -1,2 +1,4 @@
 /target
 /_data
+./frontend/venv
+./frontend/__pycache__

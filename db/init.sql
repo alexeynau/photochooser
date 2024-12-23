@@ -32,7 +32,6 @@ CREATE TABLE invitations (
     invitation_id SERIAL PRIMARY KEY,
     album_id INT NOT NULL,
     client_id INT NOT NULL,
-    photographer_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (album_id) REFERENCES albums(album_id) ON DELETE CASCADE,
     FOREIGN KEY (client_id) REFERENCES users(user_id) ON DELETE CASCADE,
@@ -49,128 +48,87 @@ CREATE TABLE photo_selections (
     FOREIGN KEY (client_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- Таблица для уведомлений
-CREATE TABLE notifications (
-    notification_id SERIAL PRIMARY KEY,
-    recipient_id INT NOT NULL,
-    message TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (recipient_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
+-- -- Простой триггер для обновления времени последнего изменения альбома при добавлении фотографии
+-- CREATE OR REPLACE FUNCTION update_album_timestamp()
+-- RETURNS TRIGGER AS $$
+-- BEGIN
+--     UPDATE albums SET created_at = CURRENT_TIMESTAMP WHERE album_id = NEW.album_id;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
+-- CREATE TRIGGER update_album_timestamp_trigger
+-- AFTER INSERT ON photos
+-- FOR EACH ROW
+-- EXECUTE FUNCTION update_album_timestamp();
 
--- Function to mark a notification as read
-CREATE FUNCTION mark_as_read(notification_id INT) 
-RETURNS VOID 
-AS $$
-BEGIN
-    UPDATE notifications SET is_read = TRUE WHERE notification_id = notification_id;
-END;
-$$ LANGUAGE plpgsql;
+-- -- Сложный триггер для проверки уникальности email перед вставкой пользователя
+-- CREATE OR REPLACE FUNCTION check_unique_email()
+-- RETURNS TRIGGER AS $$
+-- BEGIN
+--     IF EXISTS (SELECT 1 FROM users WHERE email = NEW.email) THEN
+--         RAISE EXCEPTION 'Email % already exists.', NEW.email;
+--     END IF;
+--     RETURN NEW;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
+-- CREATE TRIGGER check_unique_email_trigger
+-- BEFORE INSERT ON users
+-- FOR EACH ROW
+-- EXECUTE FUNCTION check_unique_email();
 
--- Trigger to update the timestamp when a notification is read
-CREATE TRIGGER update_timestamp_on_read
-AFTER UPDATE OF is_read ON notifications
-FOR EACH ROW
-WHEN (NEW.is_read = TRUE)
-EXECUTE FUNCTION update_timestamp();
+-- -- Простая функция для получения количества фотографий в альбоме
+-- CREATE OR REPLACE FUNCTION get_photo_count(album_id INT)
+-- RETURNS INT AS $$
+-- DECLARE
+--     photo_count INT;
+-- BEGIN
+--     SELECT COUNT(*) INTO photo_count FROM photos WHERE album_id = album_id;
+--     RETURN photo_count;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
--- Function to update the timestamp
-CREATE FUNCTION update_timestamp() 
-RETURNS TRIGGER 
-AS $$
-BEGIN
-    NEW.created_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- -- Сложная функция для получения всех альбомов фотографа с количеством фотографий
+-- CREATE OR REPLACE FUNCTION get_albums_with_photo_count(photographer_id INT)
+-- RETURNS TABLE(album_id INT, name VARCHAR, photo_count INT) AS $$
+-- BEGIN
+--     RETURN QUERY
+--     SELECT a.album_id, a.name, COUNT(p.photo_id) AS photo_count
+--     FROM albums a
+--     LEFT JOIN photos p ON a.album_id = p.album_id
+--     WHERE a.photographer_id = photographer_id
+--     GROUP BY a.album_id, a.name;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
--- Procedure to delete all notifications for a user
-CREATE PROCEDURE delete_user_notifications(user_id INT) 
-AS $$
-BEGIN
-    DELETE FROM notifications WHERE recipient_id = user_id;
-END;
-$$ LANGUAGE plpgsql;
+-- -- Простая процедура для добавления нового пользователя
+-- CREATE OR REPLACE PROCEDURE add_user(username VARCHAR, email VARCHAR, password_hash VARCHAR)
+-- LANGUAGE plpgsql AS $$
+-- BEGIN
+--     INSERT INTO users (username, email, password_hash) VALUES (username, email, password_hash);
+-- END;
+-- $$;
 
--- Function to get unread notifications for a user
-CREATE FUNCTION get_unread_notifications(user_id INT) 
-RETURNS TABLE(notification_id INT, message TEXT, created_at TIMESTAMP) 
-AS $$
-BEGIN
-    RETURN QUERY 
-        SELECT notification_id, message, created_at FROM notifications 
-        WHERE recipient_id = user_id AND is_read = FALSE;
-END;
-$$ LANGUAGE plpgsql;
+-- -- Сложная процедура для добавления фотографии и обновления времени альбома
+-- CREATE OR REPLACE PROCEDURE add_photo(album_id INT, s3_path VARCHAR)
+-- LANGUAGE plpgsql AS $$
+-- BEGIN
+--     INSERT INTO photos (album_id, s3_path) VALUES (album_id, s3_path);
+--     PERFORM update_album_timestamp();
+-- END;
+-- $$;
 
-
--- Function to log notification creation
-CREATE FUNCTION log_notification() RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO notification_logs (notification_id, action, log_time) 
-    VALUES (NEW.notification_id, 'CREATED', CURRENT_TIMESTAMP);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Procedure to mark all notifications as read for a user
-CREATE PROCEDURE mark_all_as_read(user_id INT) AS $$
-BEGIN
-    UPDATE notifications SET is_read = TRUE WHERE recipient_id = user_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to count unread notifications for a user
-CREATE FUNCTION count_unread_notifications(user_id INT) RETURNS INT AS $$
-DECLARE
-    unread_count INT;
-BEGIN
-    SELECT COUNT(*) INTO unread_count FROM notifications 
-    WHERE recipient_id = user_id AND is_read = FALSE;
-    RETURN unread_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to add a new user
-CREATE FUNCTION add_user(username TEXT, email TEXT) RETURNS VOID AS $$
-BEGIN
-    INSERT INTO users (username, email) VALUES (username, email);
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to log user creation
-CREATE TRIGGER log_user_creation
-AFTER INSERT ON users
-FOR EACH ROW
-EXECUTE FUNCTION log_user();
-
--- Procedure to update user email
-CREATE PROCEDURE update_user_email(user_id INT, new_email TEXT) AS $$
-BEGIN
-    UPDATE users SET email = new_email WHERE user_id = user_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to get user details
-CREATE FUNCTION get_user_details(user_id INT) RETURNS TABLE(username TEXT, email TEXT, created_at TIMESTAMP) AS $$
-BEGIN
-    RETURN QUERY SELECT username, email, created_at FROM users WHERE user_id = user_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Procedure to delete a photo
-CREATE PROCEDURE delete_photo(photo_id INT) AS $$
-BEGIN
-    DELETE FROM photos WHERE photo_id = photo_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to get photos by user
-CREATE FUNCTION get_photos_by_user(user_id INT) RETURNS TABLE(photo_id INT, photo_url TEXT, uploaded_at TIMESTAMP) AS $$
-BEGIN
-    RETURN QUERY SELECT photo_id, photo_url, uploaded_at FROM photos WHERE user_id = user_id;
-END;
-$$ LANGUAGE plpgsql;
+-- -- Представление для получения всех фотографий с информацией об альбоме и фотографе
+-- CREATE VIEW photo_details AS
+-- SELECT
+--     p.photo_id,
+--     p.s3_path,
+--     p.uploaded_at,
+--     a.album_id,
+--     a.name AS album_name,
+--     u.user_id AS photographer_id,
+--     u.username AS photographer_username
+-- FROM photos p
+-- JOIN albums a ON p.album_id = a.album_id
+-- JOIN users u ON a.photographer_id = u.user_id;

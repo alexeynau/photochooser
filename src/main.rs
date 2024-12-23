@@ -10,7 +10,7 @@ pub mod models;
 use controllers::{
     album::{create_album, get_albums_created_by_photographer_id},
     invitation::{create_invitation, get_albums_invited_to, get_invitations_by_user_id},
-    photo::{get_photos_by_album_id, upload_photo},
+    photo::{get_photo_by_id, get_photos_by_album_id, upload_photo},
     selections::{get_selected_photos_by_client_and_album, get_selections_by_client_and_album, select_photos},
     user::{get_user_by_email, login, sign_up},
 };
@@ -37,8 +37,6 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     let base_url = dotenvy::var("MINIO_SERVER_URL")?.parse::<BaseUrl>()?;
-
-    // get
 
     let provider = StaticProvider::new(
         &dotenvy::var("MINIO_ACCESS_KEY")?,
@@ -68,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/selections", post(select_photos))
         .route("/selections", get(get_selections_by_client_and_album))
         .route("/selected_photo", get(get_selected_photos_by_client_and_album))
+        .route("/photo", get(get_photo_by_id))
         .with_state(state);
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
