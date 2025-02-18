@@ -59,7 +59,7 @@ pub async fn upload_photo(
 
             // upload to minio
             let response = upload_photo_to_minio(
-                &format!("photos/album_{}", album_id), 
+                &format!("photos"), 
                 &file_name, 
                 &data, 
                 &state
@@ -140,33 +140,6 @@ pub async fn upload_photo_to_minio(
     Ok(response)
 }
 
-/// Get all photos in an album
-/// 
-/// GET /photos?album_id={album_id}
-#[axum::debug_handler]
-pub async fn get_photos_by_album_id(
-    State(state): State<AppState>,
-    Query(query): Query<GetPhotosByAlbumIdRequest>,
-) -> Result<Json<Vec<Photo>>, (StatusCode, String)> {
-    let photos = sqlx::query_as::<_, Photo>(
-        r#"
-    SELECT * FROM photos
-    WHERE album_id = $1
-    "#,
-    )
-    .bind(query.album_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(photos))
-}
-
-#[derive(serde::Deserialize)]
-pub struct GetPhotosByAlbumIdRequest {
-    pub album_id: i32,
-}
-
 /// Get a photo file by its ID as bytes (image/png)
 /// 
 /// GET /photo/{photo_id}
@@ -199,7 +172,7 @@ pub async fn get_photo_by_id(
         .lock()
         .await
         .get_object(
-            &format!("photos/album_{}", photo.album_id),
+            &format!("photos"),
             &photo.s3_path
         )
         .send()
@@ -224,4 +197,31 @@ pub async fn get_photo_by_id(
 #[derive(serde::Deserialize)]
 pub struct GetPhotoByIdRequest {
     pub photo_id: i32,
+}
+
+/// Get all photos in an album
+/// 
+/// GET /photos?album_id={album_id}
+#[axum::debug_handler]
+pub async fn get_photos_by_album_id(
+    State(state): State<AppState>,
+    Query(query): Query<GetPhotosByAlbumIdRequest>,
+) -> Result<Json<Vec<Photo>>, (StatusCode, String)> {
+    let photos = sqlx::query_as::<_, Photo>(
+        r#"
+    SELECT * FROM photos
+    WHERE album_id = $1
+    "#,
+    )
+    .bind(query.album_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(photos))
+}
+
+#[derive(serde::Deserialize)]
+pub struct GetPhotosByAlbumIdRequest {
+    pub album_id: i32,
 }

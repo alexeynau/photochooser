@@ -1,7 +1,7 @@
 
 BACKEND_URL="http://localhost:3000"
 
-# Create a some users
+# Создать пользователей
 for i in {1..10}
 do
   set -e
@@ -10,7 +10,7 @@ do
   -d '{"username":"User'$i'", "email":"user_'$i'@email.com", "password":"example"}' 
 done
 
-# Create some albums
+# Создать альбом
 for i in {1..5}
 do
   set -e
@@ -18,3 +18,18 @@ do
   -H "Content-Type: application/json" \
   -d '{"name":"Album'$i'",  "photographer_id":'$i'}' 
 done
+
+# Загрузить фотографии
+for i in {1..5}
+do
+  for file in /photos/*; do
+  set -e
+  curl -X POST $BACKEND_URL/upload \
+    --form 'album_id='$i'' \
+    --form 'file_name="photo_3"' \
+    --form 'file=@"'file'"'
+done
+
+
+
+

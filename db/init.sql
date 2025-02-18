@@ -63,44 +63,44 @@ CREATE TABLE photo_selections (
 -- EXECUTE FUNCTION update_album_timestamp();
 
 -- -- Сложный триггер для проверки уникальности email перед вставкой пользователя
--- CREATE OR REPLACE FUNCTION check_unique_email()
--- RETURNS TRIGGER AS $$
--- BEGIN
---     IF EXISTS (SELECT 1 FROM users WHERE email = NEW.email) THEN
---         RAISE EXCEPTION 'Email % already exists.', NEW.email;
---     END IF;
---     RETURN NEW;
--- END;
--- $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION check_unique_email()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM users WHERE email = NEW.email) THEN
+        RAISE EXCEPTION 'Email % already exists.', NEW.email;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- CREATE TRIGGER check_unique_email_trigger
--- BEFORE INSERT ON users
--- FOR EACH ROW
--- EXECUTE FUNCTION check_unique_email();
+CREATE TRIGGER check_unique_email_trigger
+BEFORE INSERT ON users
+FOR EACH ROW
+EXECUTE FUNCTION check_unique_email();
 
 -- -- Простая функция для получения количества фотографий в альбоме
--- CREATE OR REPLACE FUNCTION get_photo_count(album_id INT)
--- RETURNS INT AS $$
--- DECLARE
---     photo_count INT;
--- BEGIN
---     SELECT COUNT(*) INTO photo_count FROM photos WHERE album_id = album_id;
---     RETURN photo_count;
--- END;
--- $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION get_photo_count(album_id INT)
+RETURNS INT AS $$
+DECLARE
+    photo_count INT;
+BEGIN
+    SELECT COUNT(*) INTO photo_count FROM photos WHERE album_id = album_id;
+    RETURN photo_count;
+END;
+$$ LANGUAGE plpgsql;
 
 -- -- Сложная функция для получения всех альбомов фотографа с количеством фотографий
--- CREATE OR REPLACE FUNCTION get_albums_with_photo_count(photographer_id INT)
--- RETURNS TABLE(album_id INT, name VARCHAR, photo_count INT) AS $$
--- BEGIN
---     RETURN QUERY
---     SELECT a.album_id, a.name, COUNT(p.photo_id) AS photo_count
---     FROM albums a
---     LEFT JOIN photos p ON a.album_id = p.album_id
---     WHERE a.photographer_id = photographer_id
---     GROUP BY a.album_id, a.name;
--- END;
--- $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION get_albums_with_photo_count(photographer_id INT)
+RETURNS TABLE(album_id INT, name VARCHAR, photo_count INT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT a.album_id, a.name, COUNT(p.photo_id) AS photo_count
+    FROM albums a
+    LEFT JOIN photos p ON a.album_id = p.album_id
+    WHERE a.photographer_id = photographer_id
+    GROUP BY a.album_id, a.name;
+END;
+$$ LANGUAGE plpgsql;
 
 -- -- Простая процедура для добавления нового пользователя
 -- CREATE OR REPLACE PROCEDURE add_user(username VARCHAR, email VARCHAR, password_hash VARCHAR)
@@ -120,15 +120,15 @@ CREATE TABLE photo_selections (
 -- $$;
 
 -- -- Представление для получения всех фотографий с информацией об альбоме и фотографе
--- CREATE VIEW photo_details AS
--- SELECT
---     p.photo_id,
---     p.s3_path,
---     p.uploaded_at,
---     a.album_id,
---     a.name AS album_name,
---     u.user_id AS photographer_id,
---     u.username AS photographer_username
--- FROM photos p
--- JOIN albums a ON p.album_id = a.album_id
--- JOIN users u ON a.photographer_id = u.user_id;
+CREATE VIEW photo_details AS
+SELECT
+    p.photo_id,
+    p.s3_path,
+    p.uploaded_at,
+    a.album_id,
+    a.name AS album_name,
+    u.user_id AS photographer_id,
+    u.username AS photographer_username
+FROM photos p
+JOIN albums a ON p.album_id = a.album_id
+JOIN users u ON a.photographer_id = u.user_id;
